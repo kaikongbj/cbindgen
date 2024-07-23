@@ -4,12 +4,12 @@
 
 use std::io::Write;
 
+use crate::bindgen::{Config, Language};
 use crate::bindgen::config::Layout;
 use crate::bindgen::declarationtyperesolver::DeclarationType;
 use crate::bindgen::ir::{ConstExpr, Function, GenericArgument, Type};
 use crate::bindgen::language_backend::LanguageBackend;
 use crate::bindgen::writer::{ListType, SourceWriter};
-use crate::bindgen::{Config, Language};
 
 // This code is for translating Rust types into C declarations.
 // See Section 6.7, Declarations, in the C standard for background.
@@ -35,9 +35,9 @@ impl CDeclarator {
     }
 }
 
-struct CDecl {
+pub(crate) struct CDecl {
     type_qualifers: String,
-    type_name: String,
+    pub(crate) type_name: String,
     type_generic_args: Vec<GenericArgument>,
     declarators: Vec<CDeclarator>,
     type_ctype: Option<DeclarationType>,
@@ -56,7 +56,7 @@ impl CDecl {
         }
     }
 
-    fn from_type(t: &Type, config: &Config) -> CDecl {
+    pub(crate) fn from_type(t: &Type, config: &Config) -> CDecl {
         let mut cdecl = CDecl::new();
         cdecl.build_type(t, false, config);
         cdecl

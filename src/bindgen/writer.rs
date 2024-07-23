@@ -6,9 +6,9 @@ use std::cmp;
 use std::io;
 use std::io::Write;
 
+use crate::bindgen::Bindings;
 use crate::bindgen::config::{Braces, Language};
 use crate::bindgen::language_backend::LanguageBackend;
-use crate::bindgen::Bindings;
 
 /// A type of way to format a list.
 pub enum ListType<'a> {
@@ -177,6 +177,11 @@ impl<'a, F: Write> SourceWriter<'a, F> {
                 self.new_line();
                 self.push_tab();
             }
+            Language::POU => {
+                self.write("open_brace:");
+                self.new_line();
+                self.push_tab();
+            }
         }
     }
 
@@ -192,6 +197,14 @@ impl<'a, F: Write> SourceWriter<'a, F> {
                 }
             }
             Language::Cython => {}
+            Language::POU => {
+                self.new_line();
+                if semicolon {
+                    self.write("};");
+                } else {
+                    self.write("}");
+                }
+            }
         }
     }
 

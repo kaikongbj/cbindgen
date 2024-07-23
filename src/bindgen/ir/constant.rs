@@ -9,6 +9,7 @@ use std::io::Write;
 use syn::ext::IdentExt;
 use syn::UnOp;
 
+use crate::bindgen::Bindings;
 use crate::bindgen::config::{Config, Language};
 use crate::bindgen::declarationtyperesolver::DeclarationTypeResolver;
 use crate::bindgen::dependencies::Dependencies;
@@ -19,7 +20,6 @@ use crate::bindgen::ir::{
 use crate::bindgen::language_backend::LanguageBackend;
 use crate::bindgen::library::Library;
 use crate::bindgen::writer::SourceWriter;
-use crate::bindgen::Bindings;
 
 fn member_to_ident(member: &syn::Member) -> String {
     match member {
@@ -721,6 +721,7 @@ impl Constant {
                 write!(out, " {} # = ", name);
                 language_backend.write_literal(out, value);
             }
+            Language::POU => {}
         }
 
         condition.write_after(config, out);

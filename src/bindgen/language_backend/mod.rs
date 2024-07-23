@@ -1,18 +1,20 @@
+use std::io::Write;
+
+pub use clike::CLikeLanguageBackend;
+pub use cython::CythonLanguageBackend;
+pub use pou::POULanguageBackend;
+
+use crate::bindgen::{Bindings, cdecl, Layout};
 use crate::bindgen::ir::{
     cfg::ConditionWrite, DeprecatedNoteKind, Documentation, Enum, Function, ItemContainer, Literal,
     OpaqueItem, Static, Struct, ToCondition, Type, Typedef, Union,
 };
 use crate::bindgen::writer::SourceWriter;
-use crate::bindgen::{cdecl, Bindings, Layout};
 use crate::Config;
-
-use std::io::Write;
 
 mod clike;
 mod cython;
-
-pub use clike::CLikeLanguageBackend;
-pub use cython::CythonLanguageBackend;
+mod pou;
 
 pub trait LanguageBackend: Sized {
     fn open_namespaces<W: Write>(&mut self, out: &mut SourceWriter<W>);

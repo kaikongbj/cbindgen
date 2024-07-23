@@ -2,13 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+use std::{fmt, fs, path::Path as StdPath, path::PathBuf as StdPathBuf};
 use std::collections::{BTreeMap, HashMap};
 use std::default::Default;
 use std::str::FromStr;
-use std::{fmt, fs, path::Path as StdPath, path::PathBuf as StdPathBuf};
 
-use serde::de::value::{MapAccessDeserializer, SeqAccessDeserializer};
 use serde::de::{Deserialize, Deserializer, MapAccess, SeqAccess, Visitor};
+use serde::de::value::{MapAccessDeserializer, SeqAccessDeserializer};
 
 use crate::bindgen::ir::annotation::AnnotationSet;
 use crate::bindgen::ir::path::Path;
@@ -23,6 +23,7 @@ pub enum Language {
     Cxx,
     C,
     Cython,
+    POU
 }
 
 impl FromStr for Language {
@@ -54,6 +55,7 @@ impl Language {
         match self {
             Language::Cxx | Language::C => "typedef",
             Language::Cython => "ctypedef",
+            Language::POU => "",
         }
     }
 }
@@ -234,6 +236,13 @@ impl Style {
 
     // https://cython.readthedocs.io/en/latest/src/userguide/external_C_code.html#styles-of-struct-union-and-enum-declaration
     pub fn cython_def(self) -> &'static str {
+        if self.generate_tag() {
+            "cdef "
+        } else {
+            "ctypedef "
+        }
+    }
+    pub fn pou_def(self) -> &'static str {
         if self.generate_tag() {
             "cdef "
         } else {
@@ -893,6 +902,17 @@ pub struct CythonConfig {
     /// where you'd get includes in C.
     pub cimports: BTreeMap<String, Vec<String>>,
 }
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
+#[serde(default)]
+pub struct POUConfig {
+    /// Header specified in the top level `cdef extern from header:` declaration.
+    pub header: Option<String>,
+    /// `from module cimport name1, name2, ...` declarations added in the same place
+    /// where you'd get includes in C.
+    pub cimports: BTreeMap<String, Vec<String>>,
+}
 
 /// A collection of settings to customize the generated bindings.
 #[derive(Debug, Clone, Deserialize)]
@@ -916,14 +936,14 @@ pub struct Config {
     pub pragma_once: bool,
     /// Generates no includes at all. Overrides all other include options
     ///
-    /// This option is useful when using cbindgen with tools such as python's cffi which
+    /// This option is useful when using poubindgen with tools such as python's cffi which
     /// doesn't understand include directives
     pub no_includes: bool,
     // Package version: True if the package version should appear as a comment in the .h file
     pub package_version: bool,
     /// Optional text to output at major sections to deter manual editing
     pub autogen_warning: Option<String>,
-    /// Include a comment with the version of cbindgen used to generate the file
+    /// Include a comment with the version of poubindgen used to generate the file
     pub include_version: bool,
     /// An optional name for the root namespace. Only applicable when language="C++"
     pub namespace: Option<String>,
@@ -983,10 +1003,10 @@ pub struct Config {
     pub pointer: PtrConfig,
     /// Only download sources for dependencies needed for the target platform.
     ///
-    /// By default, cbindgen will fetch sources for dependencies used on any platform so that if a
+    /// By default, poubindgen will fetch sources for dependencies used on any platform so that if a
     /// type is defined in terms of a type from a dependency on another target (probably behind a
-    /// `#[cfg]`), cbindgen will be able to generate the appropriate binding as it can see the
-    /// nested type's definition. However, this makes calling cbindgen slower, as it may have to
+    /// `#[cfg]`), poubindgen will be able to generate the appropriate binding as it can see the
+    /// nested type's definition. However, this makes calling poubindgen slower, as it may have to
     /// download a number of additional dependencies.
     ///
     /// As an example, consider this Cargo.toml:
@@ -996,7 +1016,7 @@ pub struct Config {
     /// windows = "0.7"
     /// ```
     ///
-    /// with this declaration in one of the `.rs` files that cbindgen is asked to generate bindings
+    /// with this declaration in one of the `.rs` files that poubindgen is asked to generate bindings
     /// for:
     ///
     /// ```rust,ignore
@@ -1004,11 +1024,11 @@ pub struct Config {
     /// pub struct Error(windows::ErrorCode);
     /// ```
     ///
-    /// With the default value (`false`), cbindgen will download the `windows` dependency even when
+    /// With the default value (`false`), poubindgen will download the `windows` dependency even when
     /// not compiling for Windows, and will thus be able to generate the binding for `Error`
     /// (behind a `#define`).
     ///
-    /// If this value is instead to `true`, cbindgen will _not_ download the `windows` dependency
+    /// If this value is instead to `true`, poubindgen will _not_ download the `windows` dependency
     /// if it's not compiling for Windows, but will also fail to generate a Windows binding for
     /// `Error` as it does not know the definition for `ErrorCode`.
     ///
@@ -1027,6 +1047,7 @@ pub struct Config {
     /// and creating a new InternalConfig struct would require more breaking
     /// changes to our public API.
     pub config_path: Option<StdPathBuf>,
+    pub pou: POUConfig,
 }
 
 impl Default for Config {
@@ -1071,6 +1092,7 @@ impl Default for Config {
             only_target_dependencies: false,
             cython: CythonConfig::default(),
             config_path: None,
+            pou: POUConfig::default(),
         }
     }
 }
@@ -1119,7 +1141,7 @@ impl Config {
     }
 
     pub fn from_root_or_default<P: AsRef<StdPath>>(root: P) -> Config {
-        let c = root.as_ref().join("cbindgen.toml");
+        let c = root.as_ref().join("poubindgen.toml");
 
         if c.exists() {
             Config::from_file(c).unwrap()
