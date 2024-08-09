@@ -2,14 +2,11 @@ use std::io::Write;
 
 use crate::bindgen::{Bindings, cdecl, Config};
 use crate::bindgen::DocumentationLength;
-use crate::bindgen::ir::{
-    ConditionWrite, Documentation, Enum, EnumVariant, Field,
-    Item, Literal, OpaqueItem, Static, Struct, to_known_assoc_constant, ToCondition, Type, Typedef, Union,
-};
+use crate::bindgen::ir::{ConditionWrite, Documentation, Enum, EnumVariant, Field, Function, Item, Literal, OpaqueItem, Static, Struct, to_known_assoc_constant, ToCondition, Type, Typedef, Union};
 use crate::bindgen::language_backend::LanguageBackend;
 use crate::bindgen::writer::{ListType, SourceWriter};
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 struct Pin {
     name: String,
     description: String,
@@ -27,13 +24,13 @@ impl From<&Field> for Pin {
         }
     }
 }
-#[derive(Serialize)]
-struct POU {
+#[derive(Serialize, Clone)]
+struct DATATYPE {
     name: String,
     description: String,
     pins: Vec<Pin>,
 }
-impl From<&Struct> for POU {
+impl From<&Struct> for DATATYPE {
     fn from(s: &Struct) -> Self {
         Self {
             name: s.name().clone().parse().unwrap(),
@@ -42,15 +39,45 @@ impl From<&Struct> for POU {
         }
     }
 }
+#[derive(Serialize, Clone)]
+struct POU {
+    name: String,
+    description: String,
+    params: Vec<String>,
+    return_type: String,
+}
+impl From<&Function> for POU {
+    fn from(f: &Function) -> Self {
+        Self {
+            name: f.path.to_string(),
+            description: f.documentation.doc_comment.join("\n"),
+            params: f.args.iter().map(|p| {
+                let config = Config::default();
+                let d = cdecl::CDecl::from_type(&p.ty, &config);
+                d.type_name.clone()
+            }).collect(),
+            return_type: {
+                let config = Config::default();
+                let d = cdecl::CDecl::from_type(&f.ret, &config);
+                d.type_name.clone()
+            },
+        }
+    }
+}
+#[derive(Serialize)]
+struct CombinedData {
+    datatypes: Vec<DATATYPE>,
+    pous: Vec<POU>,
+}
 pub struct POULanguageBackend<'a> {
     config: &'a Config,
-    pou: Vec<POU>,
+    data: CombinedData,
     js: String,
 }
 
 impl<'a> POULanguageBackend<'a> {
     pub fn new(config: &'a Config) -> Self {
-        Self { config, pou: vec![], js: "".to_string() }
+        Self { config, js: "".to_string(), data: CombinedData { datatypes: vec![], pous: vec![] } }
     }
 
     fn write_enum_variant<W: Write>(&mut self, out: &mut SourceWriter<W>, u: &EnumVariant) {
@@ -153,12 +180,14 @@ impl LanguageBackend for POULanguageBackend<'_> {
     }
 
     fn write_footers<W: Write>(&mut self, out: &mut SourceWriter<W>) {
-        match serde_json::to_string(&self.pou) {
-            Ok(json) => {
-                self.js = json;
+        match serde_json::to_string(&self.data) {
+            Ok(js) => {
+                self.js = js;
                 write!(out, "{}", self.js.as_str());
             }
-            Err(e) => { panic!("{}", e) }
+            Err(e) => {
+                println!("Error: {}", e);
+            }
         }
     }
 
@@ -204,8 +233,8 @@ impl LanguageBackend for POULanguageBackend<'_> {
     }
 
     fn write_struct<W: Write>(&mut self, out: &mut SourceWriter<W>, s: &Struct) {
-        let pou = POU::from(s);
-        self.pou.push(pou);
+        let datatype = DATATYPE::from(s);
+        self.data.datatypes.push(datatype);
     }
 
     fn write_union<W: Write>(&mut self, out: &mut SourceWriter<W>, u: &Union) {
@@ -377,5 +406,10 @@ impl LanguageBackend for POULanguageBackend<'_> {
         }
     }
 
-    fn write_functions<W: Write>(&mut self, out: &mut SourceWriter<W>, b: &Bindings) {}
+    fn write_functions<W: Write>(&mut self, out: &mut SourceWriter<W>, b: &Bindings) {
+        for f in &b.functions {
+            let pou = POU::from(f);
+            self.data.pous.push(pou);
+        }
+    }
 }
