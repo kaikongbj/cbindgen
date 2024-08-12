@@ -92,6 +92,17 @@ fn generate_depfile_tests() {
 }
 
 fn main() {
+    // 编译protobuf文件，并处理错误
+    println!("cargo:rerun-if-changed=./protobufs/kvpac.proto");
+    const GEN_DIR: &str = "src/proto";
+    const PROTO_FILE_PATHS: &[&str] = &["./protobufs/kvpac.proto"];
+    const SRC_DIRS: &[&str] = &["./protobufs"];
+    let _ = prost_build::Config::new()
+        .btree_map(&["."])
+        .default_package_filename("kvpac")
+        .out_dir(GEN_DIR)
+        .compile_protos(PROTO_FILE_PATHS, SRC_DIRS);
+
     generate_tests();
     generate_depfile_tests();
 }

@@ -1,0 +1,4 @@
+[submodule "protobufs"]
+	path = protobufs
+	url = https://gitee.com/kaikong/protobufs.git
+	branch = master

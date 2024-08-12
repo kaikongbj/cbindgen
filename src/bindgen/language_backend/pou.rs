@@ -1,10 +1,10 @@
 use std::io::Write;
 
-use crate::bindgen::{Bindings, cdecl, Config};
-use crate::bindgen::DocumentationLength;
-use crate::bindgen::ir::{ConditionWrite, Documentation, Enum, EnumVariant, Field, Function, Item, Literal, OpaqueItem, Static, Struct, to_known_assoc_constant, ToCondition, Type, Typedef, Union};
+use crate::bindgen::ir::{to_known_assoc_constant, ConditionWrite, Documentation, Enum, EnumVariant, Field, Function, Item, Literal, OpaqueItem, Static, Struct, ToCondition, Type, Typedef, Union};
 use crate::bindgen::language_backend::LanguageBackend;
 use crate::bindgen::writer::{ListType, SourceWriter};
+use crate::bindgen::DocumentationLength;
+use crate::bindgen::{cdecl, Bindings, Config};
 
 #[derive(Serialize, Clone)]
 struct Pin {
@@ -105,14 +105,14 @@ impl<'a> POULanguageBackend<'a> {
 }
 
 impl LanguageBackend for POULanguageBackend<'_> {
-    fn open_namespaces<W: Write>(&mut self, out: &mut SourceWriter<W>) {
+    fn open_namespaces<W: Write>(&mut self, _out: &mut SourceWriter<W>) {
         // out.new_line();
         // let header = &self.config.pou.header.as_deref().unwrap_or("*");
         // write!(out, "cdef extern from {}", header);
         // out.open_brace();
     }
 
-    fn close_namespaces<W: Write>(&mut self, out: &mut SourceWriter<W>) {
+    fn close_namespaces<W: Write>(&mut self, _out: &mut SourceWriter<W>) {
 
         // out.close_brace(false);
     }
@@ -232,7 +232,7 @@ impl LanguageBackend for POULanguageBackend<'_> {
         condition.write_after(self.config, out);
     }
 
-    fn write_struct<W: Write>(&mut self, out: &mut SourceWriter<W>, s: &Struct) {
+    fn write_struct<W: Write>(&mut self, _out: &mut SourceWriter<W>, s: &Struct) {
         let datatype = DATATYPE::from(s);
         self.data.datatypes.push(datatype);
     }
@@ -281,20 +281,20 @@ impl LanguageBackend for POULanguageBackend<'_> {
 
         o.generic_params.write_with_default(self, self.config, out);
 
-        write!(
-            out,
-            "{}struct {}",
-            &self.config.style.pou_def(),
-            o.export_name()
-        );
-        out.open_brace();
-        out.write("pass");
-        out.close_brace(false);
+        // write!(
+        //     out,
+        //     "{}struct {}",
+        //     &self.config.style.pou_def(),
+        //     o.export_name()
+        // );
+        // out.open_brace();
+        // out.write("pass");
+        // out.close_brace(false);
 
         condition.write_after(self.config, out);
     }
 
-    fn write_type_def<W: Write>(&mut self, out: &mut SourceWriter<W>, t: &Typedef) {}
+    fn write_type_def<W: Write>(&mut self, _out: &mut SourceWriter<W>, _t: &Typedef) {}
 
     fn write_static<W: Write>(&mut self, out: &mut SourceWriter<W>, s: &Static) {
         let condition = s.cfg.to_condition(self.config);
@@ -406,10 +406,12 @@ impl LanguageBackend for POULanguageBackend<'_> {
         }
     }
 
-    fn write_functions<W: Write>(&mut self, out: &mut SourceWriter<W>, b: &Bindings) {
+    fn write_functions<W: Write>(&mut self, _out: &mut SourceWriter<W>, b: &Bindings) {
         for f in &b.functions {
-            let pou = POU::from(f);
-            self.data.pous.push(pou);
+            if f.path.to_string().starts_with("fb_") {
+                let pou = POU::from(f);
+                self.data.pous.push(pou);
+            }
         }
     }
 }
