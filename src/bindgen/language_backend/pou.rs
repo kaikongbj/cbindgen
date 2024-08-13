@@ -1,10 +1,13 @@
-use std::io::Write;
-
 use crate::bindgen::ir::{to_known_assoc_constant, ConditionWrite, Documentation, Enum, EnumVariant, Field, Function, Item, Literal, OpaqueItem, Static, Struct, ToCondition, Type, Typedef, Union};
 use crate::bindgen::language_backend::LanguageBackend;
 use crate::bindgen::writer::{ListType, SourceWriter};
 use crate::bindgen::DocumentationLength;
 use crate::bindgen::{cdecl, Bindings, Config};
+use crate::proto::kvpac;
+use crate::proto::kvpac::{PinIn, PinOut, Pou, PouList};
+use prost::Message;
+use std::fs;
+use std::io::Write;
 
 #[derive(Serialize, Clone)]
 struct Pin {
@@ -64,6 +67,45 @@ impl From<&Function> for POU {
         }
     }
 }
+impl From<&Function> for Pou {
+    fn from(f: &Function) -> Self {
+        let mut pins = Vec::new();
+        let mut pouts = Vec::new();
+        for p in f.args.iter() {
+            let name = p.name.clone().unwrap();
+            let config = Config::default();
+            let d = cdecl::CDecl::from_type(&p.ty, &config);
+
+            if name.starts_with("i") {
+                let pin = PinIn {
+                    base: Some(kvpac::Pin {
+                        name: name.clone(),
+                        description: f.documentation.doc_comment.join("\n"),
+                        r#type: d.type_name.clone(),
+                    })
+                };
+                pins.push(pin);
+            }
+            if name.starts_with("x") {
+                let pout = PinOut {
+                    base: Some(kvpac::Pin {
+                        name: name.clone(),
+                        description: f.documentation.doc_comment.join("\n"),
+                        r#type: d.type_name.clone(),
+                    }),
+
+                };
+                pouts.push(pout);
+            }
+        }
+        Self {
+            name: f.path.to_string(),
+            description: f.documentation.doc_comment.join("\n"),
+            r#in: pins,
+            out: pouts,
+        }
+    }
+}
 #[derive(Serialize)]
 struct CombinedData {
     datatypes: Vec<DATATYPE>,
@@ -72,12 +114,13 @@ struct CombinedData {
 pub struct POULanguageBackend<'a> {
     config: &'a Config,
     data: CombinedData,
+    pou_pb: PouList,
     js: String,
 }
 
 impl<'a> POULanguageBackend<'a> {
     pub fn new(config: &'a Config) -> Self {
-        Self { config, js: "".to_string(), data: CombinedData { datatypes: vec![], pous: vec![] } }
+        Self { config, js: "".to_string(), data: CombinedData { datatypes: vec![], pous: vec![] }, pou_pb: PouList { pou: vec![] } }
     }
 
     fn write_enum_variant<W: Write>(&mut self, out: &mut SourceWriter<W>, u: &EnumVariant) {
@@ -180,6 +223,8 @@ impl LanguageBackend for POULanguageBackend<'_> {
     }
 
     fn write_footers<W: Write>(&mut self, out: &mut SourceWriter<W>) {
+        let o = self.pou_pb.encode_to_vec();
+        fs::write("plc.fb", o).unwrap();
         match serde_json::to_string(&self.data) {
             Ok(js) => {
                 self.js = js;
@@ -411,6 +456,8 @@ impl LanguageBackend for POULanguageBackend<'_> {
             if f.path.to_string().starts_with("fb_") {
                 let pou = POU::from(f);
                 self.data.pous.push(pou);
+                let p = Pou::from(f);
+                self.pou_pb.pou.push(p);
             }
         }
     }

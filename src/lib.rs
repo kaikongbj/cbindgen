@@ -15,7 +15,7 @@ extern crate syn;
 extern crate toml;
 
 mod bindgen;
-mod proto;
+pub mod proto;
 
 pub use crate::bindgen::*;
 

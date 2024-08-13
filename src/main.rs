@@ -2,29 +2,28 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-use std::env;
-use std::io;
-use std::path::{Path, PathBuf};
-use std::str::FromStr;
-
 extern crate clap;
 #[macro_use]
 extern crate log;
 extern crate proc_macro2;
 #[macro_use]
+extern crate quote;
+#[macro_use]
 extern crate serde;
 extern crate serde_json;
 #[macro_use]
-extern crate quote;
-#[macro_use]
 extern crate syn;
 extern crate toml;
+use std::env;
+use std::io;
+use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
 use clap::{value_parser, Arg, ArgAction, ArgMatches, Command};
 
 mod bindgen;
 mod logging;
-
+pub mod proto;
 use bindgen::{Bindings, Builder, Cargo, Config, Error};
 
 fn apply_config_overrides(config: &mut Config, matches: &ArgMatches) {
