@@ -4,7 +4,7 @@ use crate::bindgen::writer::{ListType, SourceWriter};
 use crate::bindgen::DocumentationLength;
 use crate::bindgen::{cdecl, Bindings, Config};
 use crate::proto::kvpac;
-use crate::proto::kvpac::{PinIn, PinOut, Pou, PouList};
+use crate::proto::kvpac::{PdDataTypes, PinIn, PinOut, Pou, PouList};
 use prost::Message;
 use std::fs;
 use std::io::Write;
@@ -46,7 +46,7 @@ impl From<&Struct> for DATATYPE {
 struct POU {
     name: String,
     description: String,
-    params: Vec<String>,
+    params: Vec<[String; 2]>,
     return_type: String,
 }
 impl From<&Function> for POU {
@@ -57,7 +57,7 @@ impl From<&Function> for POU {
             params: f.args.iter().map(|p| {
                 let config = Config::default();
                 let d = cdecl::CDecl::from_type(&p.ty, &config);
-                d.type_name.clone()
+                [d.type_name.clone(), p.name.clone().unwrap()]
             }).collect(),
             return_type: {
                 let config = Config::default();
@@ -115,12 +115,14 @@ pub struct POULanguageBackend<'a> {
     config: &'a Config,
     data: CombinedData,
     pou_pb: PouList,
+    hw_datatypes: PdDataTypes,
+    fb_datatypes: PdDataTypes,
     js: String,
 }
 
 impl<'a> POULanguageBackend<'a> {
     pub fn new(config: &'a Config) -> Self {
-        Self { config, js: "".to_string(), data: CombinedData { datatypes: vec![], pous: vec![] }, pou_pb: PouList { pou: vec![] } }
+        Self { config, js: "".to_string(), data: CombinedData { datatypes: vec![], pous: vec![] }, pou_pb: PouList { pou: vec![] }, hw_datatypes: Default::default(), fb_datatypes: Default::default() }
     }
 
     fn write_enum_variant<W: Write>(&mut self, out: &mut SourceWriter<W>, u: &EnumVariant) {
@@ -279,7 +281,7 @@ impl LanguageBackend for POULanguageBackend<'_> {
 
     fn write_struct<W: Write>(&mut self, _out: &mut SourceWriter<W>, s: &Struct) {
         let datatype = DATATYPE::from(s);
-        self.data.datatypes.push(datatype);
+        self.data.datatypes.push(datatype.clone());
     }
 
     fn write_union<W: Write>(&mut self, out: &mut SourceWriter<W>, u: &Union) {
@@ -457,7 +459,8 @@ impl LanguageBackend for POULanguageBackend<'_> {
                 let pou = POU::from(f);
                 self.data.pous.push(pou);
                 let p = Pou::from(f);
-                self.pou_pb.pou.push(p);
+                self.pou_pb.pou.push(p.clone());
+                println!("pou: {:?}", p);
             }
         }
     }
